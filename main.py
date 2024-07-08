@@ -25,8 +25,11 @@ class WebsiteScraper:
     def __init__(self, start_url):
         self.visited_urls = set()
         self.start_url = start_url
+
+        # use this for an entire website
         # self.domain = start_url.split("//")[-1].split("/")[0]
 
+        # use this for a specific subdomain
         self.domain = start_url.split("//")[-1]
 
     def is_internal(self, url):
@@ -48,17 +51,12 @@ class WebsiteScraper:
 
         else:
             try:
-                filename = url.replace("http://", "").replace("https://", "").replace("/", "_") + ".txt"
-                path = os.path.join("txts", filename)
                 text = " " + text + " "
-                # text_file = open(path, "w")
                 path = "txts/" + OUTPUT_FILE
                 text_file = open(path, "a")
                 result = text_file.write(text)
                 file_size = os.path.getsize(path)
                 print(f"Saved {url} as {path} {file_size}")
-                if file_size > 1000000:
-                    pass
                 result = True
 
             except Exception as e:
