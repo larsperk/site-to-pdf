@@ -106,20 +106,16 @@ if __name__ == "__main__":
     scraper = WebsiteScraper(SITE_ROOT)
 
     # Create a directory to save the PDFs
-
     if MODE == "PDFS":
         if not os.path.exists("pdfs"):
             os.makedirs("pdfs")
         scraper.scrape(scraper.start_url)
 
+    # or the TXTs
     elif MODE == "TEXT-BLOB":
         if not os.path.exists("txts"):
             os.makedirs("txts")
-        try:
-            scraper.scrape(scraper.start_url)
-
-        except:
-            pass
+        scraper.scrape(scraper.start_url)
 
     else:
         printf(f"Invalid scrape mode {MODE}")
