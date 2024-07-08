@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 import pdfkit
 import os
 
-SITE_ROOT = "https://reverb.hardrockhotels.com/"
-OUTPUT_FILE = "reverb_hard_rock_blob.txt"
+SITE_ROOT = "reverb.hardrock.com/hamburg"
+OUTPUT_FILE = "reverb-hamburg.txt"
 MODE = "TEXT-BLOB"
 
 excluded_url_strings = [
@@ -13,14 +13,21 @@ excluded_url_strings = [
     "audio",
     "podcast",
     ".jpeg",
-    ".jpg"
+    ".jpg",
+    "lsereviewofbooks",
+    "Campus-life",
+    "undefined",
+    "youtu.be",
+    "pdf"
 ]
 
 class WebsiteScraper:
     def __init__(self, start_url):
         self.visited_urls = set()
         self.start_url = start_url
-        self.domain = start_url.split("//")[-1].split("/")[0]
+        # self.domain = start_url.split("//")[-1].split("/")[0]
+
+        self.domain = start_url.split("//")[-1]
 
     def is_internal(self, url):
         return self.domain in url
@@ -35,7 +42,6 @@ class WebsiteScraper:
             print(f"Error saving {url} as PDF: {e}")
 
     def save_as_text(self, url, text):
-
         if any([excluded_url_string in url for excluded_url_string in excluded_url_strings]):
             result = False
             print(f'ignoring link {url}')
@@ -49,7 +55,10 @@ class WebsiteScraper:
                 path = "txts/" + OUTPUT_FILE
                 text_file = open(path, "a")
                 result = text_file.write(text)
-                print(f"Saved {url} as {path}")
+                file_size = os.path.getsize(path)
+                print(f"Saved {url} as {path} {file_size}")
+                if file_size > 1000000:
+                    pass
                 result = True
 
             except Exception as e:
@@ -108,7 +117,11 @@ if __name__ == "__main__":
     elif MODE == "TEXT-BLOB":
         if not os.path.exists("txts"):
             os.makedirs("txts")
-        scraper.scrape(scraper.start_url)
+        try:
+            scraper.scrape(scraper.start_url)
+
+        except:
+            pass
 
     else:
-        printf(f"Invalid scrape mode{MODE}")
+        printf(f"Invalid scrape mode {MODE}")
