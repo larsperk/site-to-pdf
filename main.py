@@ -2,10 +2,20 @@ import requests
 from bs4 import BeautifulSoup
 import pdfkit
 import os
+import re
+from urllib.parse import urlparse
+import tldextract
 
-SITE_ROOT = "reverb.hardrock.com/hamburg"
-OUTPUT_FILE = "reverb-hamburg.txt"
-MODE = "TEXT-BLOB"
+SITE_ROOT = "zushealth.com" # do not prefix with http:// or https:// or www
+OUTPUT_FILE = "zushealth.txt"
+SUBDIR = "txts"
+
+MODE = "TEXT-BLOB"  # or "PDFS"
+
+
+output_file = os.path.join(SUBDIR, OUTPUT_FILE)
+if os.path.exists(output_file):
+    os.remove(output_file)
 
 excluded_url_strings = [
     "drive.google.com",
@@ -14,23 +24,40 @@ excluded_url_strings = [
     "podcast",
     ".jpeg",
     ".jpg",
-    "lsereviewofbooks",
-    "Campus-life",
     "undefined",
     "youtu.be",
-    "pdf"
+    "pdf",
 ]
+
+excluded_subdomains = [
+]
+
+def get_subdomain(url):
+    if not url.startswith("http"):
+        url = "https://" + url
+    parsed_url = urlparse(url)
+    extracted = tldextract.extract(parsed_url.netloc)
+    path = parsed_url.path
+
+    # Reconstruct subdomain
+    subdomain = extracted.subdomain
+    base_domain = f"{extracted.domain}.{extracted.suffix}"  # e.g., example.com
+
+    return subdomain, base_domain, path
 
 class WebsiteScraper:
     def __init__(self, start_url):
         self.visited_urls = set()
         self.start_url = start_url
+        self.start_subdomain, _, _ = get_subdomain("https://" + start_url)
+        self.current_subdomain = self.start_subdomain
+        self.output_file = os.path.join(SUBDIR, OUTPUT_FILE)
 
         # use this for an entire website
-        # self.domain = start_url.split("//")[-1].split("/")[0]
+        self.domain = start_url.split("//")[-1].split("/")[0]
 
         # use this for a specific subdomain
-        self.domain = start_url.split("//")[-1]
+        # self.domain = start_url.split("//")[-1]
 
     def is_internal(self, url):
         return self.domain in url
@@ -52,11 +79,10 @@ class WebsiteScraper:
         else:
             try:
                 text = " " + text + " "
-                path = "txts/" + OUTPUT_FILE
-                text_file = open(path, "a")
+                text_file = open(self.output_file, "a")
                 result = text_file.write(text)
-                file_size = os.path.getsize(path)
-                print(f"Saved {url} as {path} {file_size}")
+                file_size = os.path.getsize(self.output_file)
+                print(f"Saved {url} as {self.output_file} {file_size}")
                 result = True
 
             except Exception as e:
@@ -66,12 +92,27 @@ class WebsiteScraper:
         return result
 
     def scrape(self, url):
-        if any([excluded_url_string in url for excluded_url_string in excluded_url_strings]):
-            result = False
-            print(f'not scraping {url}')
+        new_subdomain, base_domain, path = get_subdomain(url)
+        new_subdomain = ""
+        if self.current_subdomain != new_subdomain and new_subdomain:
+            self.current_subdomain = new_subdomain
+            print(f"Switching to subdomain {new_subdomain} for {url}")
 
-        else:
-            url = "https://" + url.split("//")[-1]
+        should_scrape = True
+        if any([excluded_url_string in url for excluded_url_string in excluded_url_strings]):
+            should_scrape = False
+        if any([excluded_subdomain in url for excluded_subdomain in excluded_subdomains]):
+            should_scrape = False
+
+        if should_scrape:
+            if self.current_subdomain:
+                domain_prefix = self.current_subdomain + "."
+                self.output_file = os.path.join(SUBDIR, self.current_subdomain + "_" + OUTPUT_FILE)
+            else:
+                domain_prefix = ""
+                self.output_file = os.path.join(SUBDIR, OUTPUT_FILE)
+
+            url = "https://" + domain_prefix + base_domain + path
             if url in self.visited_urls:
                 return
             self.visited_urls.add(url)
@@ -81,11 +122,18 @@ class WebsiteScraper:
                 print(f"Failed to fetch {url}")
                 return
 
+            soup_to_be_delinked = BeautifulSoup(response.text, 'html.parser')
+            for a in soup_to_be_delinked.find_all('a'):
+                a.decompose()  # Completely remove the <a> tag and its content
+            delinked_text = soup_to_be_delinked.get_text(separator="\n", strip=True)
+            delinked_text = "\n".join(line for line in delinked_text.splitlines() if line.strip())
+            delinked_text = re.sub(r'\n+', '\n', delinked_text)
+
             soup = BeautifulSoup(response.text, 'html.parser')
             text = soup.getText(separator=' ')
 
             if MODE == "TEXT-BLOB":
-                result = self.save_as_text(url, text)
+                result = self.save_as_text(url, delinked_text)
             elif MODE == "PDFS":
                 self.save_as_pdf(url)
 
@@ -100,10 +148,13 @@ class WebsiteScraper:
                 # Check if the link is internal to the website
                 if self.is_internal(link) and link not in self.visited_urls:
                     self.scrape(link)
+        else:
+            print(f'not scraping {url}')
 
 
 if __name__ == "__main__":
-    scraper = WebsiteScraper(SITE_ROOT)
+    clean_url = SITE_ROOT.removeprefix("http://").removeprefix("https://").removeprefix("www.")
+    scraper = WebsiteScraper(clean_url)
 
     # Create a directory to save the PDFs
     if MODE == "PDFS":
